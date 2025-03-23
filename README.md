@@ -22,7 +22,7 @@ limited to the first 224 colors (all non-fullbright colors).
 ### Linux
 
 _Requires that GEGL be installed.  This ought to be the case if GIMP is already
-installed, though development packages may be needed dependding on distro_
+installed, though development packages may be needed depending on distro_
 
 Run `make` from the project root to build. 
 
