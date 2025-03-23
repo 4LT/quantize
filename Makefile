@@ -9,7 +9,7 @@ CFLAGS=`$(PKGCONFIG_CFLAGS)` -Wall -std=c99 -fpic -O2 -I. \
 	-DQU_VERSION=$(VERSION)
 LFLAGS=`$(PKGCONFIG_LFLAGS)` -shared
 BASE_DEPS=Makefile
-OBJS=entry.o
+OBJS=entry.o quakepal.o
 INSTALL_PATH=$(HOME)/.local/share/gegl-0.4/plug-ins
 ARTIFACT=$(PLUGIN_NAME)$(VERSION).$(EXT)
 
@@ -27,6 +27,9 @@ $(ARTIFACT): $(BASE_DEPS) $(OBJS)
 
 entry.o: $(BASE_DEPS) entry.c quakepal.h
 	$(CC) $(CFLAGS) -c entry.c
+
+quakepal.o: $(BASE_DEPS) quakepal.c quakepal.h
+	$(CC) $(CFLAGS) -c quakepal.c
 
 clean:
 	rm -f $(OBJS)
