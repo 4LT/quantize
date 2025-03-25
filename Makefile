@@ -11,6 +11,7 @@ LFLAGS=`$(PKGCONFIG_LFLAGS)` -shared
 BASE_DEPS=Makefile
 OBJS=entry.o quakepal.o
 INSTALL_PATH=$(HOME)/.local/share/gegl-0.4/plug-ins
+INSTALLFLATPAK_PATH=$(HOME)/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins
 ARTIFACT=$(PLUGIN_NAME)$(VERSION).$(EXT)
 
 .PHONY=all install clean
@@ -20,6 +21,10 @@ all: $(ARTIFACT)
 install: $(ARTIFACT)
 	mkdir -p $(INSTALL_PATH)
 	cp $(ARTIFACT) $(INSTALL_PATH)/$(ARTIFACT)
+
+install-flatpak: $(ARTIFACT)
+	mkdir -p $(INSTALLFLATPAK_PATH)
+	cp $(ARTIFACT) $(INSTALLFLATPAK_PATH)/$(ARTIFACT)
 
 
 $(ARTIFACT): $(BASE_DEPS) $(OBJS)

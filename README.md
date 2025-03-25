@@ -27,8 +27,12 @@ installed, though development packages may be needed depending on distro_
 Run `make` from the project root to build. 
 
 Run `make install` to copy the built artifact into
-`$HOME/.local/share/gegl-0.4/plug-ins`; otherwise install manually by copying
-`quantize-alpha1.so` into the appropriate directory.
+`$HOME/.local/share/gegl-0.4/plug-ins`
+
+Run `make install-flatpak` to copy the built artifact into
+`$HOME/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins`
+
+otherwise install manually by copying `quantize-alpha1.so` into the appropriate directory.
 
 ### Windows
 
