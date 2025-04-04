@@ -43,77 +43,41 @@ property_double(weight_b, "Blue Weight", 1.0)
 #pragma message "Name and version: " QU_NAME "-" QU_STRINGIFY(QU_VERSION)
 
 #define GEGL_OP_POINT_FILTER
-#define GEGL_OP_NAME quantize_op
+#define GEGL_OP_NAME QU_PASTE(quantize_op_alpha_, QU_VERSION)
 #define GEGL_OP_C_SOURCE entry.c
+
+#pragma message "Op name: " QU_STRINGIFY(GEGL_OP_NAME)
 
 #include "gegl-op.h"
 #include "quakepal.h"
+#include "color_space_ops.h"
 
 // non-fullbright colors only
 #define QUAKE_COLOR_COUNT 224
 
-struct quantize_color {
-    float c[4];
-};
+static struct vec4 rgb_palette[QUAKE_COLOR_COUNT];
+static struct vec4 hsl_palette[QUAKE_COLOR_COUNT];
 
-struct quantize_ctx {
-    float weights[3];
-};
-
-static struct quantize_color colors[QUAKE_COLOR_COUNT];
-
-static float color_distance_sq(
-    struct quantize_ctx *ctx,
-    struct quantize_color c1,
-    struct quantize_color c2
-) {
-    float d_r = (c1.c[0] - c2.c[0]) * ctx->weights[0];
-    float d_g = (c1.c[1] - c2.c[1]) * ctx->weights[1];
-    float d_b = (c1.c[2] - c2.c[2]) * ctx->weights[2];
-
-    return d_r * d_r + d_g * d_g + d_b * d_b;
-}
-
-static struct quantize_color nearest_color(
-    struct quantize_ctx *ctx,
-    struct quantize_color in_color
-) {
-    struct quantize_color *nearest = colors;
-    struct quantize_color *selected;
-    float nearest_distance_sq = 1.f/0.f;
-    float distance_sq;
-
-    for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
-        selected = colors + idx;
-        distance_sq = color_distance_sq(ctx, in_color, *selected);
-        if (distance_sq < nearest_distance_sq) {
-            nearest = selected;
-            nearest_distance_sq = distance_sq;
-        }
-    }
-
-    return *nearest;
-}
-
-static void populate_colors() {
+static void initialize_colors() {
     int offset = 0;
     const Babl *srgb = babl_format("R'G'B' u8");
     const Babl *linear = babl_format("RGB float");
-    float *linear_buffer = malloc(QUAKE_COLOR_COUNT * 3 * sizeof(float));
+    const Babl *hsl = babl_format("HSL float");
+    float *buffer = malloc(QUAKE_COLOR_COUNT * 3 * sizeof(float));
 
     babl_process(
         babl_fish(srgb, linear),
         QUAKEPAL,
-        linear_buffer,
+        buffer,
         QUAKE_COLOR_COUNT
     );
 
     for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
-        colors[idx] = (struct quantize_color) {
-            .c = {
-                linear_buffer[offset],
-                linear_buffer[offset + 1],
-                linear_buffer[offset + 2],
+        rgb_palette[idx] = (struct vec4) {
+            .v = {
+                buffer[offset],
+                buffer[offset + 1],
+                buffer[offset + 2],
                 1.f
             }
         };
@@ -121,7 +85,25 @@ static void populate_colors() {
         offset+= 3;
     }
 
-    free(linear_buffer);
+    babl_process(
+        babl_fish(srgb, hsl),
+        QUAKEPAL,
+        buffer,
+        QUAKE_COLOR_COUNT
+    );
+
+    for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
+        hsl_palette[idx] = (struct vec4) {
+            .v = {
+                buffer[offset],
+                buffer[offset + 1],
+                buffer[offset + 2],
+                1.f
+            }
+        };
+    }
+
+    free(buffer);
 }
 
 static gboolean process(
@@ -133,15 +115,17 @@ static gboolean process(
     gint                 level
 ) {
     GeglProperties *props = GEGL_PROPERTIES(op);
-    struct quantize_ctx *ctx = props->user_data;
+    struct color_space_ctx *ctx = props->user_data;
     gfloat *GEGL_ALIGNED in_f = in_buf;
     gfloat *GEGL_ALIGNED out_f = out_buf;
+    struct vec4 color;
+    int color_index;
 
     for (long pix = 0; pix < n_pixels; pix++) {
-        struct quantize_color col =
-            nearest_color(ctx, *(struct quantize_color *)in_f);
-        col.c[3] = in_f[3];
-        *(struct quantize_color *)out_f = col;
+        color_index = nearest_color_index(ctx, *(struct vec4 *)in_f);
+        color = rgb_palette[color_index];
+        color.v[3] = in_f[3];
+        *(struct vec4 *)out_f = color;
         
         out_f+= 4;
         in_f+= 4;
@@ -152,16 +136,19 @@ static gboolean process(
 
 static void prepare(GeglOperation *op) {
     GeglProperties *props = GEGL_PROPERTIES(op);
-    struct quantize_ctx *ctx = props->user_data;
-    ctx->weights[0] = props->weight_r;
-    ctx->weights[1] = props->weight_g;
-    ctx->weights[2] = props->weight_b;
+    struct color_space_ctx *ctx = props->user_data;
+    ctx->weights.v[0] = props->weight_r;
+    ctx->weights.v[1] = props->weight_g;
+    ctx->weights.v[2] = props->weight_b;
+    ctx->palette = rgb_palette;
+    ctx->palette_sz = QUAKE_COLOR_COUNT;
+    ctx->distance_sq = rgb_distance_sq;
 }
 
 static void constructed(GObject *obj) {
     GeglOperation *op = GEGL_OPERATION(obj);
     GeglProperties *props = GEGL_PROPERTIES(op);
-    props->user_data = malloc(sizeof (struct quantize_ctx));
+    props->user_data = malloc(sizeof (struct color_space_ctx));
 }
 
 static void dispose(GObject *obj) {
@@ -194,7 +181,7 @@ static void gegl_op_class_init (GeglOpClass *cls) {
         NULL
     );
 
-    populate_colors();
+    initialize_colors();
 }
 
 #endif
