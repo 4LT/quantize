@@ -12,7 +12,7 @@ BASE_DEPS=Makefile
 OBJS=entry.o quakepal.o
 INSTALL_PATH=$(HOME)/.local/share/gegl-0.4/plug-ins
 INSTALLFLATPAK_PATH=$(HOME)/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins
-ARTIFACT=$(PLUGIN_NAME)$(VERSION).$(EXT)
+ARTIFACT=$(PLUGIN_NAME)-$(VERSION).$(EXT)
 
 .PHONY=all install clean
 

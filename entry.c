@@ -13,8 +13,8 @@
  *
  */
 
-#define _QU_DBG_STRING(str) #str
-#define QU_DBG_STRING(str) _QU_DBG_STRING(str)
+#define _QU_STRINGIFY(str) #str
+#define QU_STRINGIFY(str) _QU_STRINGIFY(str)
 #define _QU_PASTE(a, b) a##b
 #define QU_PASTE(a, b) _QU_PASTE(a, b)
 
@@ -35,31 +35,12 @@ property_double(weight_b, "Blue Weight", 1.0)
 #else
 
 #define QU_NAME "4lt:quantize-alpha"
-#define QU_ZERO 0
-#define QU_NUMERIC_VERSION QU_PASTE(QU_ZERO, QU_VERSION)
 
-/* Macro debugging
-
-#ifdef QU_VERSION
-    #pragma message "Version: " QU_DBG_STRING(QU_VERSION)
-    #pragma message "Version Numeric: " QU_DBG_STRING(QU_NUMERIC_VERSION)
+#ifndef QU_VERSION
+    #error "No version number"
 #endif
 
-*/
-
-// #if instead of #ifdef in case VERSION is defined but empty
-#if QU_NUMERIC_VERSION
-    #define _QU_BUILD_NAME_VERSION(name, version) \
-        (name "-" #version)
-    #define QU_BUILD_NAME_VERSION(name, version) \
-        _QU_BUILD_NAME_VERSION(name, version)
-    #define QU_NAME_VERSION QU_BUILD_NAME_VERSION(QU_NAME, QU_VERSION)
-#else
-    #define QU_NAME_VERSION (QU_NAME)
-    #warning "No version number"
-#endif
-
-#pragma message "Name and version: " QU_DBG_STRING(QU_NAME_VERSION)
+#pragma message "Name and version: " QU_NAME "-" QU_STRINGIFY(QU_VERSION)
 
 #define GEGL_OP_POINT_FILTER
 #define GEGL_OP_NAME quantize_op
@@ -205,7 +186,7 @@ static void gegl_op_class_init (GeglOpClass *cls) {
         "title",
             "Quantize (alpha version)",
         "name",
-            QU_NAME_VERSION,
+            QU_NAME "-" QU_STRINGIFY(QU_VERSION),
         "categories",
             "Colors",
         "description",
