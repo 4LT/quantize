@@ -1,5 +1,5 @@
 PLUGIN_NAME=quantize-alpha
-VERSION=1
+VERSION=2
 EXT=so
 
 PKGCONFIG_PKGS=gegl-0.4
