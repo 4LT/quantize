@@ -13,6 +13,10 @@
  *
  */
 
+// Necessary for enums to compile
+#define GETTEXT_PACKAGE "gegl-0.4"
+#include <glib/gi18n-lib.h>
+
 #define _QU_STRINGIFY(str) #str
 #define QU_STRINGIFY(str) _QU_STRINGIFY(str)
 #define _QU_PASTE(a, b) a##b
@@ -20,16 +24,29 @@
 
 #ifdef GEGL_PROPERTIES
 
-property_double(weight_r, "Red Weight", 1.0)
-    description("Scale red impact on color difference")
+enum_start(color_space)
+enum_value(COLOR_SPACE_RGB, "rgb", "RGB")
+enum_value(COLOR_SPACE_HSL, "hsl", "HSL")
+enum_end(color_space_t)
+
+property_enum(
+    color_space,
+    "Color space",
+    color_space_t,
+    color_space,
+    COLOR_SPACE_RGB
+)
+
+property_double(weight_x, "Red/Hue Weight", 1.0)
+    description("Scale red or hue impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_g, "Green Weight", 1.0)
-    description("Scale green impact on color difference")
+property_double(weight_y, "Green/Saturation Weight", 1.0)
+    description("Scale green or saturation impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_b, "Blue Weight", 1.0)
-    description("Scale blue impact on color difference")
+property_double(weight_z, "Blue/Lightness Weight", 1.0)
+    description("Scale blue or lightness impact on color difference")
     value_range(0.0, 2.0)
 
 #else
@@ -48,6 +65,8 @@ property_double(weight_b, "Blue Weight", 1.0)
 
 #pragma message "Op name: " QU_STRINGIFY(GEGL_OP_NAME)
 
+#include <stdio.h>
+
 #include "gegl-op.h"
 #include "quakepal.h"
 #include "color_space_ops.h"
@@ -58,15 +77,40 @@ property_double(weight_b, "Blue Weight", 1.0)
 static struct vec4 rgb_palette[QUAKE_COLOR_COUNT];
 static struct vec4 hsl_palette[QUAKE_COLOR_COUNT];
 
-static void initialize_colors() {
+static struct {
+    const Babl *srgb;
+    const Babl *rgb_linear;
+    const Babl *hsl;
+    const Babl *srgb_to_linear;
+    const Babl *srgb_to_hsl;
+    const Babl *rgb_linear_to_hsl;
+} color_space_info;
+
+static void initialize_color() {
     int offset = 0;
-    const Babl *srgb = babl_format("R'G'B' u8");
-    const Babl *linear = babl_format("RGB float");
-    const Babl *hsl = babl_format("HSL float");
+    color_space_info.srgb = babl_format("R'G'B' u8");
+    color_space_info.rgb_linear = babl_format("RGB float");
+    color_space_info.hsl = babl_format("HSL float");
+
+    color_space_info.srgb_to_linear = babl_fish(
+        color_space_info.srgb,
+        color_space_info.rgb_linear
+    );
+
+    color_space_info.srgb_to_hsl = babl_fish(
+        color_space_info.srgb,
+        color_space_info.hsl
+    );
+
+    color_space_info.rgb_linear_to_hsl = babl_fish(
+        color_space_info.rgb_linear,
+        color_space_info.hsl
+    );
+
     float *buffer = malloc(QUAKE_COLOR_COUNT * 3 * sizeof(float));
 
     babl_process(
-        babl_fish(srgb, linear),
+        color_space_info.srgb_to_linear,
         QUAKEPAL,
         buffer,
         QUAKE_COLOR_COUNT
@@ -85,8 +129,10 @@ static void initialize_colors() {
         offset+= 3;
     }
 
+    offset = 0;
+
     babl_process(
-        babl_fish(srgb, hsl),
+        color_space_info.srgb_to_hsl,
         QUAKEPAL,
         buffer,
         QUAKE_COLOR_COUNT
@@ -101,6 +147,8 @@ static void initialize_colors() {
                 1.f
             }
         };
+
+        offset+= 3;
     }
 
     free(buffer);
@@ -119,10 +167,25 @@ static gboolean process(
     gfloat *GEGL_ALIGNED in_f = in_buf;
     gfloat *GEGL_ALIGNED out_f = out_buf;
     struct vec4 color;
+    struct vec4 color_in;
+    struct vec4 color_converted;
     int color_index;
 
     for (long pix = 0; pix < n_pixels; pix++) {
-        color_index = nearest_color_index(ctx, *(struct vec4 *)in_f);
+        color_in = *(struct vec4 *)in_f;
+
+        if (props->color_space == COLOR_SPACE_HSL) {
+            babl_process(
+                color_space_info.rgb_linear_to_hsl,
+                &color_in,
+                &color_converted,
+                1
+            );
+        } else {
+            color_converted = color_in;
+        }
+
+        color_index = nearest_color_index(ctx, color_converted);
         color = rgb_palette[color_index];
         color.v[3] = in_f[3];
         *(struct vec4 *)out_f = color;
@@ -137,12 +200,21 @@ static gboolean process(
 static void prepare(GeglOperation *op) {
     GeglProperties *props = GEGL_PROPERTIES(op);
     struct color_space_ctx *ctx = props->user_data;
-    ctx->weights.v[0] = props->weight_r;
-    ctx->weights.v[1] = props->weight_g;
-    ctx->weights.v[2] = props->weight_b;
-    ctx->palette = rgb_palette;
+    ctx->weights.v[0] = props->weight_x;
+    ctx->weights.v[1] = props->weight_y;
+    ctx->weights.v[2] = props->weight_z;
+
+    switch (props->color_space) {
+        case COLOR_SPACE_HSL:
+            ctx->palette = hsl_palette;
+            ctx->distance_sq = hsl_distance_sq;
+            break;
+        default:
+            ctx->palette = rgb_palette;
+            ctx->distance_sq = rgb_distance_sq;
+    }
+
     ctx->palette_sz = QUAKE_COLOR_COUNT;
-    ctx->distance_sq = rgb_distance_sq;
 }
 
 static void constructed(GObject *obj) {
@@ -181,7 +253,7 @@ static void gegl_op_class_init (GeglOpClass *cls) {
         NULL
     );
 
-    initialize_colors();
+    initialize_color();
 }
 
 #endif

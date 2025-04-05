@@ -14,17 +14,28 @@
  */
 
 #include "color_space_ops.h"
+#include <math.h>
 
 float rgb_distance_sq(
     struct vec4 color1,
     struct vec4 color2,
     struct vec4 weights
 ) {
-    float d_r = (color1.v[0] - color2.v[0]) * weights.v[0];
-    float d_g = (color1.v[1] - color2.v[1]) * weights.v[1];
-    float d_b = (color1.v[2] - color2.v[2]) * weights.v[2];
+    float d_r = (color2.v[0] - color1.v[0]) * weights.v[0];
+    float d_g = (color2.v[1] - color1.v[1]) * weights.v[1];
+    float d_b = (color2.v[2] - color1.v[2]) * weights.v[2];
 
     return d_r*d_r + d_g*d_g + d_b*d_b;
+}
+
+static float hue_difference(float hue2, float hue1) {
+    float d = hue2 - hue1;
+    d = d - floor(d);
+    return d < 0.5f ? d : 1.f - d;
+}
+
+static float chroma_scale_by_lightness(float x) {
+    return 1.f - fabs(2.f * x - 1.f);
 }
 
 float hsl_distance_sq(
@@ -32,8 +43,39 @@ float hsl_distance_sq(
     struct vec4 color2,
     struct vec4 weights
 ) {
-    /* STUB */
-    return 1.f;
+    float pi = acos(-1.0);
+    float d_hue = hue_difference(color2.v[0], color1.v[0]);
+    float sat_0 = color1.v[1];
+    float sat_f = color2.v[1];
+    float height_0 = color1.v[2];
+    float height_f = color2.v[2];
+    float r_0 = chroma_scale_by_lightness(height_0) * sat_0;
+    float r_f = chroma_scale_by_lightness(height_f) * sat_f;
+    float r_min = r_0 < r_f ? r_0 : r_f;
+    float r_max = r_0 > r_f ? r_0 : r_f;
+    float d_height = height_f - height_0;
+    float d_r = r_max - r_min;
+    float r_mid = (r_min + r_max)/2.f;
+    float d_theta = d_hue * pi * 2;
+    
+    float d_theta_weighted = d_theta * weights.v[0];
+    float d_r_weighted = d_r * weights.v[1];
+    float d_height_weighted = d_height * weights.v[2];
+
+    // d_theta_weighted tends towards 0 as r_min/r_max approaches 0
+    // for cases where perceptual difference is more similar to euclidean
+    // distance
+
+    if (r_max != 0.f) {
+        d_theta_weighted *= r_min / r_max;
+    }
+
+    // sqrt(d_r^2 + (d_theta * r_mid)^2) approx. arc length of archimedean
+    // spiral segment
+    
+    return d_r_weighted*d_r_weighted +
+        (r_mid*d_theta_weighted) * (r_mid*d_theta_weighted) +
+        d_height_weighted*d_height_weighted;
 }
 
 int nearest_color_index(
