@@ -52,9 +52,12 @@ float lch_distance_sq(
     float r_mid = (r_min + r_max)/2.f;
     float d_theta = d_hue * pi * 2; // Min. diff. in hue
     
-    float d_height_weighted = d_height * weights.v[0];
+    // Note: weights are in reverse order from the colors b/c the color model
+    // is LCH, but the UI matches the Hue-Chroma control in GIMP which is in
+    // hue-chroma-lightness order
+    float d_height_weighted = d_height * weights.v[2];
     float d_r_weighted = d_r * weights.v[1];
-    float d_theta_weighted = d_theta * weights.v[2];
+    float d_theta_weighted = d_theta * weights.v[0];
 
     // d_theta_weighted tends towards 0 as r_min/r_max approaches 0
     // for cases where perceptual difference is more similar to euclidean

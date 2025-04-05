@@ -26,7 +26,7 @@
 
 enum_start(color_space)
 enum_value(COLOR_SPACE_RGB, "rgb", "Linear RGB")
-enum_value(COLOR_SPACE_LCH, "lch", "CIE LCH")
+enum_value(COLOR_SPACE_LCH, "lch", "Hue-Chroma-Lightness")
 enum_end(color_space_t)
 
 property_enum(
@@ -37,16 +37,16 @@ property_enum(
     COLOR_SPACE_RGB
 )
 
-property_double(weight_x, "Red/Lightness Weight", 1.0)
-    description("Scale red or lightness impact on color difference")
+property_double(weight_x, "Red/Hue Weight", 1.0)
+    description("Scale red or hue impact on color difference")
     value_range(0.0, 2.0)
 
 property_double(weight_y, "Green/Chroma Weight", 1.0)
     description("Scale green or chroma impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_z, "Blue/Hue Weight", 1.0)
-    description("Scale blue or hue impact on color difference")
+property_double(weight_z, "Blue/Lightness Weight", 1.0)
+    description("Scale blue or lightness impact on color difference")
     value_range(0.0, 2.0)
 
 #else
