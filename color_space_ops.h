@@ -45,9 +45,9 @@ float rgb_distance_sq(
 
 /*
  * Combination of methods (approx. length of archimedean spiral and euclidean
- * distance) to find distance in HSL cone
- */
-float hsl_distance_sq(
+ * distance) to find distance in CIE LCH(ab) cylindrical coordinates
+*/
+float lch_distance_sq(
     struct vec4 color1,
     struct vec4 color2,
     struct vec4 weights

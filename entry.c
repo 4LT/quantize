@@ -25,8 +25,8 @@
 #ifdef GEGL_PROPERTIES
 
 enum_start(color_space)
-enum_value(COLOR_SPACE_RGB, "rgb", "RGB")
-enum_value(COLOR_SPACE_HSL, "hsl", "HSL")
+enum_value(COLOR_SPACE_RGB, "rgb", "Linear RGB")
+enum_value(COLOR_SPACE_LCH, "lch", "CIE LCH")
 enum_end(color_space_t)
 
 property_enum(
@@ -37,16 +37,16 @@ property_enum(
     COLOR_SPACE_RGB
 )
 
-property_double(weight_x, "Red/Hue Weight", 1.0)
-    description("Scale red or hue impact on color difference")
+property_double(weight_x, "Red/Lightness Weight", 1.0)
+    description("Scale red or lightness impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_y, "Green/Saturation Weight", 1.0)
-    description("Scale green or saturation impact on color difference")
+property_double(weight_y, "Green/Chroma Weight", 1.0)
+    description("Scale green or chroma impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_z, "Blue/Lightness Weight", 1.0)
-    description("Scale blue or lightness impact on color difference")
+property_double(weight_z, "Blue/Hue Weight", 1.0)
+    description("Scale blue or hue impact on color difference")
     value_range(0.0, 2.0)
 
 #else
@@ -65,8 +65,6 @@ property_double(weight_z, "Blue/Lightness Weight", 1.0)
 
 #pragma message "Op name: " QU_STRINGIFY(GEGL_OP_NAME)
 
-#include <stdio.h>
-
 #include "gegl-op.h"
 #include "quakepal.h"
 #include "color_space_ops.h"
@@ -75,36 +73,43 @@ property_double(weight_z, "Blue/Lightness Weight", 1.0)
 #define QUAKE_COLOR_COUNT 224
 
 static struct vec4 rgb_palette[QUAKE_COLOR_COUNT];
-static struct vec4 hsl_palette[QUAKE_COLOR_COUNT];
+static struct vec4 lch_palette[QUAKE_COLOR_COUNT];
 
 static struct {
     const Babl *srgb;
     const Babl *rgb_linear;
-    const Babl *hsl;
+    const Babl *lch;
     const Babl *srgb_to_linear;
-    const Babl *srgb_to_hsl;
-    const Babl *rgb_linear_to_hsl;
+    const Babl *srgb_to_lch;
+    const Babl *rgb_linear_to_lch;
 } color_space_info;
+
+static struct vec4 normalize_lch(struct vec4 lch) {
+    lch.v[0]/= 100.f;
+    lch.v[1]/= 180.f;
+    lch.v[2]/= 360.f;
+    return lch;
+}
 
 static void initialize_color() {
     int offset = 0;
     color_space_info.srgb = babl_format("R'G'B' u8");
     color_space_info.rgb_linear = babl_format("RGB float");
-    color_space_info.hsl = babl_format("HSL float");
+    color_space_info.lch = babl_format("CIE LCH(ab) float");
 
     color_space_info.srgb_to_linear = babl_fish(
         color_space_info.srgb,
         color_space_info.rgb_linear
     );
 
-    color_space_info.srgb_to_hsl = babl_fish(
+    color_space_info.srgb_to_lch = babl_fish(
         color_space_info.srgb,
-        color_space_info.hsl
+        color_space_info.lch
     );
 
-    color_space_info.rgb_linear_to_hsl = babl_fish(
+    color_space_info.rgb_linear_to_lch = babl_fish(
         color_space_info.rgb_linear,
-        color_space_info.hsl
+        color_space_info.lch
     );
 
     float *buffer = malloc(QUAKE_COLOR_COUNT * 3 * sizeof(float));
@@ -132,21 +137,21 @@ static void initialize_color() {
     offset = 0;
 
     babl_process(
-        color_space_info.srgb_to_hsl,
+        color_space_info.srgb_to_lch,
         QUAKEPAL,
         buffer,
         QUAKE_COLOR_COUNT
     );
 
     for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
-        hsl_palette[idx] = (struct vec4) {
+        lch_palette[idx] = normalize_lch((struct vec4) {
             .v = {
                 buffer[offset],
                 buffer[offset + 1],
                 buffer[offset + 2],
                 1.f
             }
-        };
+        });
 
         offset+= 3;
     }
@@ -174,13 +179,15 @@ static gboolean process(
     for (long pix = 0; pix < n_pixels; pix++) {
         color_in = *(struct vec4 *)in_f;
 
-        if (props->color_space == COLOR_SPACE_HSL) {
+        if (props->color_space == COLOR_SPACE_LCH) {
             babl_process(
-                color_space_info.rgb_linear_to_hsl,
+                color_space_info.rgb_linear_to_lch,
                 &color_in,
                 &color_converted,
                 1
             );
+
+            color_converted = normalize_lch(color_converted);
         } else {
             color_converted = color_in;
         }
@@ -205,9 +212,9 @@ static void prepare(GeglOperation *op) {
     ctx->weights.v[2] = props->weight_z;
 
     switch (props->color_space) {
-        case COLOR_SPACE_HSL:
-            ctx->palette = hsl_palette;
-            ctx->distance_sq = hsl_distance_sq;
+        case COLOR_SPACE_LCH:
+            ctx->palette = lch_palette;
+            ctx->distance_sq = lch_distance_sq;
             break;
         default:
             ctx->palette = rgb_palette;

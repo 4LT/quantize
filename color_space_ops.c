@@ -34,33 +34,27 @@ static float hue_difference(float hue2, float hue1) {
     return d < 0.5f ? d : 1.f - d;
 }
 
-static float chroma_scale_by_lightness(float x) {
-    return 1.f - fabs(2.f * x - 1.f);
-}
-
-float hsl_distance_sq(
+float lch_distance_sq(
     struct vec4 color1,
     struct vec4 color2,
     struct vec4 weights
 ) {
     float pi = acos(-1.0);
-    float d_hue = hue_difference(color2.v[0], color1.v[0]);
-    float sat_0 = color1.v[1];
-    float sat_f = color2.v[1];
-    float height_0 = color1.v[2];
-    float height_f = color2.v[2];
-    float r_0 = chroma_scale_by_lightness(height_0) * sat_0;
-    float r_f = chroma_scale_by_lightness(height_f) * sat_f;
+    float height_0 = color1.v[0]; // Lightness 1
+    float height_f = color2.v[0]; // Lightness 2
+    float r_0 = color1.v[1]; // Chroma 1
+    float r_f = color2.v[1]; // Chroma 2
+    float d_hue = hue_difference(color2.v[2], color1.v[2]);
     float r_min = r_0 < r_f ? r_0 : r_f;
     float r_max = r_0 > r_f ? r_0 : r_f;
     float d_height = height_f - height_0;
     float d_r = r_max - r_min;
     float r_mid = (r_min + r_max)/2.f;
-    float d_theta = d_hue * pi * 2;
+    float d_theta = d_hue * pi * 2; // Min. diff. in hue
     
-    float d_theta_weighted = d_theta * weights.v[0];
+    float d_height_weighted = d_height * weights.v[0];
     float d_r_weighted = d_r * weights.v[1];
-    float d_height_weighted = d_height * weights.v[2];
+    float d_theta_weighted = d_theta * weights.v[2];
 
     // d_theta_weighted tends towards 0 as r_min/r_max approaches 0
     // for cases where perceptual difference is more similar to euclidean
