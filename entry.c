@@ -13,126 +13,120 @@
  *
  */
 
-#define _QU_DBG_STRING(str) #str
-#define QU_DBG_STRING(str) _QU_DBG_STRING(str)
+// Necessary for enums to compile
+#define GETTEXT_PACKAGE "gegl-0.4"
+#include <glib/gi18n-lib.h>
+
+#define _QU_STRINGIFY(str) #str
+#define QU_STRINGIFY(str) _QU_STRINGIFY(str)
 #define _QU_PASTE(a, b) a##b
 #define QU_PASTE(a, b) _QU_PASTE(a, b)
 
 #ifdef GEGL_PROPERTIES
 
-property_double(weight_r, "Red Weight", 1.0)
-    description("Scale red impact on color difference")
+enum_start(color_space)
+enum_value(COLOR_SPACE_RGB, "rgb", "Linear RGB")
+enum_value(COLOR_SPACE_LCH, "lch", "Hue-Chroma-Lightness")
+enum_end(color_space_t)
+
+property_enum(
+    color_space,
+    "Color space",
+    color_space_t,
+    color_space,
+    COLOR_SPACE_RGB
+)
+
+property_double(weight_x, "Red/Hue Weight", 1.0)
+    description("Scale red or hue impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_g, "Green Weight", 1.0)
-    description("Scale green impact on color difference")
+property_double(weight_y, "Green/Chroma Weight", 1.0)
+    description("Scale green or chroma impact on color difference")
     value_range(0.0, 2.0)
 
-property_double(weight_b, "Blue Weight", 1.0)
-    description("Scale blue impact on color difference")
+property_double(weight_z, "Blue/Lightness Weight", 1.0)
+    description("Scale blue or lightness impact on color difference")
     value_range(0.0, 2.0)
 
 #else
 
 #define QU_NAME "4lt:quantize-alpha"
-#define QU_ZERO 0
-#define QU_NUMERIC_VERSION QU_PASTE(QU_ZERO, QU_VERSION)
 
-/* Macro debugging
-
-#ifdef QU_VERSION
-    #pragma message "Version: " QU_DBG_STRING(QU_VERSION)
-    #pragma message "Version Numeric: " QU_DBG_STRING(QU_NUMERIC_VERSION)
+#ifndef QU_VERSION
+    #error "No version number"
 #endif
 
-*/
-
-// #if instead of #ifdef in case VERSION is defined but empty
-#if QU_NUMERIC_VERSION
-    #define _QU_BUILD_NAME_VERSION(name, version) \
-        (name "-" #version)
-    #define QU_BUILD_NAME_VERSION(name, version) \
-        _QU_BUILD_NAME_VERSION(name, version)
-    #define QU_NAME_VERSION QU_BUILD_NAME_VERSION(QU_NAME, QU_VERSION)
-#else
-    #define QU_NAME_VERSION (QU_NAME)
-    #warning "No version number"
-#endif
-
-#pragma message "Name and version: " QU_DBG_STRING(QU_NAME_VERSION)
+#pragma message "Name and version: " QU_NAME "-" QU_STRINGIFY(QU_VERSION)
 
 #define GEGL_OP_POINT_FILTER
-#define GEGL_OP_NAME quantize_op
+#define GEGL_OP_NAME QU_PASTE(quantize_op_alpha_, QU_VERSION)
 #define GEGL_OP_C_SOURCE entry.c
+
+#pragma message "Op name: " QU_STRINGIFY(GEGL_OP_NAME)
 
 #include "gegl-op.h"
 #include "quakepal.h"
+#include "color_space_ops.h"
 
 // non-fullbright colors only
 #define QUAKE_COLOR_COUNT 224
 
-struct quantize_color {
-    float c[4];
-};
+static struct vec4 rgb_palette[QUAKE_COLOR_COUNT];
+static struct vec4 lch_palette[QUAKE_COLOR_COUNT];
 
-struct quantize_ctx {
-    float weights[3];
-};
+static struct {
+    const Babl *srgb;
+    const Babl *rgb_linear;
+    const Babl *lch;
+    const Babl *srgb_to_linear;
+    const Babl *srgb_to_lch;
+    const Babl *rgb_linear_to_lch;
+} color_space_info;
 
-static struct quantize_color colors[QUAKE_COLOR_COUNT];
-
-static float color_distance_sq(
-    struct quantize_ctx *ctx,
-    struct quantize_color c1,
-    struct quantize_color c2
-) {
-    float d_r = (c1.c[0] - c2.c[0]) * ctx->weights[0];
-    float d_g = (c1.c[1] - c2.c[1]) * ctx->weights[1];
-    float d_b = (c1.c[2] - c2.c[2]) * ctx->weights[2];
-
-    return d_r * d_r + d_g * d_g + d_b * d_b;
+static struct vec4 normalize_lch(struct vec4 lch) {
+    lch.v[0]/= 100.f;
+    lch.v[1]/= 180.f;
+    lch.v[2]/= 360.f;
+    return lch;
 }
 
-static struct quantize_color nearest_color(
-    struct quantize_ctx *ctx,
-    struct quantize_color in_color
-) {
-    struct quantize_color *nearest = colors;
-    struct quantize_color *selected;
-    float nearest_distance_sq = 1.f/0.f;
-    float distance_sq;
-
-    for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
-        selected = colors + idx;
-        distance_sq = color_distance_sq(ctx, in_color, *selected);
-        if (distance_sq < nearest_distance_sq) {
-            nearest = selected;
-            nearest_distance_sq = distance_sq;
-        }
-    }
-
-    return *nearest;
-}
-
-static void populate_colors() {
+static void initialize_color() {
     int offset = 0;
-    const Babl *srgb = babl_format("R'G'B' u8");
-    const Babl *linear = babl_format("RGB float");
-    float *linear_buffer = malloc(QUAKE_COLOR_COUNT * 3 * sizeof(float));
+    color_space_info.srgb = babl_format("R'G'B' u8");
+    color_space_info.rgb_linear = babl_format("RGB float");
+    color_space_info.lch = babl_format("CIE LCH(ab) float");
+
+    color_space_info.srgb_to_linear = babl_fish(
+        color_space_info.srgb,
+        color_space_info.rgb_linear
+    );
+
+    color_space_info.srgb_to_lch = babl_fish(
+        color_space_info.srgb,
+        color_space_info.lch
+    );
+
+    color_space_info.rgb_linear_to_lch = babl_fish(
+        color_space_info.rgb_linear,
+        color_space_info.lch
+    );
+
+    float *buffer = malloc(QUAKE_COLOR_COUNT * 3 * sizeof(float));
 
     babl_process(
-        babl_fish(srgb, linear),
+        color_space_info.srgb_to_linear,
         QUAKEPAL,
-        linear_buffer,
+        buffer,
         QUAKE_COLOR_COUNT
     );
 
     for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
-        colors[idx] = (struct quantize_color) {
-            .c = {
-                linear_buffer[offset],
-                linear_buffer[offset + 1],
-                linear_buffer[offset + 2],
+        rgb_palette[idx] = (struct vec4) {
+            .v = {
+                buffer[offset],
+                buffer[offset + 1],
+                buffer[offset + 2],
                 1.f
             }
         };
@@ -140,7 +134,29 @@ static void populate_colors() {
         offset+= 3;
     }
 
-    free(linear_buffer);
+    offset = 0;
+
+    babl_process(
+        color_space_info.srgb_to_lch,
+        QUAKEPAL,
+        buffer,
+        QUAKE_COLOR_COUNT
+    );
+
+    for (int idx = 0; idx < QUAKE_COLOR_COUNT; idx++) {
+        lch_palette[idx] = normalize_lch((struct vec4) {
+            .v = {
+                buffer[offset],
+                buffer[offset + 1],
+                buffer[offset + 2],
+                1.f
+            }
+        });
+
+        offset+= 3;
+    }
+
+    free(buffer);
 }
 
 static gboolean process(
@@ -152,15 +168,34 @@ static gboolean process(
     gint                 level
 ) {
     GeglProperties *props = GEGL_PROPERTIES(op);
-    struct quantize_ctx *ctx = props->user_data;
+    struct color_space_ctx *ctx = props->user_data;
     gfloat *GEGL_ALIGNED in_f = in_buf;
     gfloat *GEGL_ALIGNED out_f = out_buf;
+    struct vec4 color;
+    struct vec4 color_in;
+    struct vec4 color_converted;
+    int color_index;
 
     for (long pix = 0; pix < n_pixels; pix++) {
-        struct quantize_color col =
-            nearest_color(ctx, *(struct quantize_color *)in_f);
-        col.c[3] = in_f[3];
-        *(struct quantize_color *)out_f = col;
+        color_in = *(struct vec4 *)in_f;
+
+        if (props->color_space == COLOR_SPACE_LCH) {
+            babl_process(
+                color_space_info.rgb_linear_to_lch,
+                &color_in,
+                &color_converted,
+                1
+            );
+
+            color_converted = normalize_lch(color_converted);
+        } else {
+            color_converted = color_in;
+        }
+
+        color_index = nearest_color_index(ctx, color_converted);
+        color = rgb_palette[color_index];
+        color.v[3] = in_f[3];
+        *(struct vec4 *)out_f = color;
         
         out_f+= 4;
         in_f+= 4;
@@ -171,16 +206,28 @@ static gboolean process(
 
 static void prepare(GeglOperation *op) {
     GeglProperties *props = GEGL_PROPERTIES(op);
-    struct quantize_ctx *ctx = props->user_data;
-    ctx->weights[0] = props->weight_r;
-    ctx->weights[1] = props->weight_g;
-    ctx->weights[2] = props->weight_b;
+    struct color_space_ctx *ctx = props->user_data;
+    ctx->weights.v[0] = props->weight_x;
+    ctx->weights.v[1] = props->weight_y;
+    ctx->weights.v[2] = props->weight_z;
+
+    switch (props->color_space) {
+        case COLOR_SPACE_LCH:
+            ctx->palette = lch_palette;
+            ctx->distance_sq = lch_distance_sq;
+            break;
+        default:
+            ctx->palette = rgb_palette;
+            ctx->distance_sq = rgb_distance_sq;
+    }
+
+    ctx->palette_sz = QUAKE_COLOR_COUNT;
 }
 
 static void constructed(GObject *obj) {
     GeglOperation *op = GEGL_OPERATION(obj);
     GeglProperties *props = GEGL_PROPERTIES(op);
-    props->user_data = malloc(sizeof (struct quantize_ctx));
+    props->user_data = malloc(sizeof (struct color_space_ctx));
 }
 
 static void dispose(GObject *obj) {
@@ -205,7 +252,7 @@ static void gegl_op_class_init (GeglOpClass *cls) {
         "title",
             "Quantize (alpha version)",
         "name",
-            QU_NAME_VERSION,
+            QU_NAME "-" QU_STRINGIFY(QU_VERSION),
         "categories",
             "Colors",
         "description",
@@ -213,7 +260,7 @@ static void gegl_op_class_init (GeglOpClass *cls) {
         NULL
     );
 
-    populate_colors();
+    initialize_color();
 }
 
 #endif

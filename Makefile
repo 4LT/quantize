@@ -1,5 +1,5 @@
 PLUGIN_NAME=quantize-alpha
-VERSION=1
+VERSION=2
 EXT=so
 
 PKGCONFIG_PKGS=gegl-0.4
@@ -9,10 +9,10 @@ CFLAGS=`$(PKGCONFIG_CFLAGS)` -Wall -std=c99 -fpic -O2 -I. \
 	-DQU_VERSION=$(VERSION)
 LFLAGS=`$(PKGCONFIG_LFLAGS)` -shared
 BASE_DEPS=Makefile
-OBJS=entry.o quakepal.o
+OBJS=entry.o quakepal.o color_space_ops.o
 INSTALL_PATH=$(HOME)/.local/share/gegl-0.4/plug-ins
 INSTALLFLATPAK_PATH=$(HOME)/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins
-ARTIFACT=$(PLUGIN_NAME)$(VERSION).$(EXT)
+ARTIFACT=$(PLUGIN_NAME)-$(VERSION).$(EXT)
 
 .PHONY=all install clean
 
@@ -30,11 +30,14 @@ install-flatpak: $(ARTIFACT)
 $(ARTIFACT): $(BASE_DEPS) $(OBJS)
 	$(CC) $(LFLAGS) $(OBJS) -o $(ARTIFACT)
 
-entry.o: $(BASE_DEPS) entry.c quakepal.h
+entry.o: $(BASE_DEPS) entry.c quakepal.h color_space_ops.h
 	$(CC) $(CFLAGS) -c entry.c
 
 quakepal.o: $(BASE_DEPS) quakepal.c quakepal.h
 	$(CC) $(CFLAGS) -c quakepal.c
+
+color_space_ops.o: $(BASE_DEPS) color_space_ops.c color_space_ops.h
+	$(CC) $(CFLAGS) -c color_space_ops.c
 
 clean:
 	rm -f $(OBJS)
