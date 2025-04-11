@@ -1,5 +1,5 @@
 PLUGIN_NAME=quantize-alpha
-VERSION=2
+VERSION=3
 EXT=so
 
 PKGCONFIG_PKGS=gegl-0.4
@@ -12,7 +12,7 @@ BASE_DEPS=Makefile
 OBJS=entry.o quakepal.o color_space_ops.o
 INSTALL_PATH=$(HOME)/.local/share/gegl-0.4/plug-ins
 INSTALLFLATPAK_PATH=$(HOME)/.var/app/org.gimp.GIMP/data/gegl-0.4/plug-ins
-ARTIFACT=$(PLUGIN_NAME)-$(VERSION).$(EXT)
+ARTIFACT=$(PLUGIN_NAME).$(EXT)
 
 .PHONY=all install clean
 
@@ -41,5 +41,5 @@ color_space_ops.o: $(BASE_DEPS) color_space_ops.c color_space_ops.h
 
 clean:
 	rm -f $(OBJS)
-	rm -f $(PLUGIN_NAME)*.so
-	rm -f $(PLUGIN_NAME)*.dll
+	rm -f $(PLUGIN_NAME).so
+	rm -f $(PLUGIN_NAME).dll

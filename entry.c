@@ -22,48 +22,64 @@
 #define _QU_PASTE(a, b) a##b
 #define QU_PASTE(a, b) _QU_PASTE(a, b)
 
+#ifndef QU_VERSION
+    #error "No version number"
+#endif
+
+#define QU_NAME "4lt:quantize-alpha"
+
 #ifdef GEGL_PROPERTIES
 
 enum_start(color_space)
 enum_value(COLOR_SPACE_RGB, "rgb", "Linear RGB")
 enum_value(COLOR_SPACE_LCH, "lch", "Hue-Chroma-Lightness")
-enum_end(color_space_t)
+enum_end(color_space_t_a3)
 
 property_enum(
     color_space,
     "Color space",
-    color_space_t,
+    color_space_t_a3,
     color_space,
     COLOR_SPACE_RGB
 )
 
-property_double(weight_x, "Red/Hue Weight", 1.0)
-    description("Scale red or hue impact on color difference")
+property_double(weight_r, "Red Weight", 1.0)
+    description("Scale red impact on color difference")
     value_range(0.0, 2.0)
+    ui_meta("visible", "color_space {rgb}")
 
-property_double(weight_y, "Green/Chroma Weight", 1.0)
-    description("Scale green or chroma impact on color difference")
+property_double(weight_g, "Green Weight", 1.0)
+    description("Scale green impact on color difference")
     value_range(0.0, 2.0)
+    ui_meta("visible", "color_space {rgb}")
 
-property_double(weight_z, "Blue/Lightness Weight", 1.0)
-    description("Scale blue or lightness impact on color difference")
+property_double(weight_b, "Blue Weight", 1.0)
+    description("Scale blue impact on color difference")
     value_range(0.0, 2.0)
+    ui_meta("visible", "color_space {rgb}")
+
+property_double(weight_hue, "Hue Weight", 1.0)
+    description("Scale hue impact on color difference")
+    value_range(0.0, 2.0)
+    ui_meta("visible", "color_space {lch}")
+
+property_double(weight_chroma, "Chroma Weight", 1.0)
+    description("Scale chroma impact on color difference")
+    value_range(0.0, 2.0)
+    ui_meta("visible", "color_space {lch}")
+
+property_double(weight_lightness, "Lightness Weight", 1.0)
+    description("Scale lightness impact on color difference")
+    value_range(0.0, 2.0)
+    ui_meta("visible", "color_space {lch}")
 
 #else
-
-#define QU_NAME "4lt:quantize-alpha"
-
-#ifndef QU_VERSION
-    #error "No version number"
-#endif
 
 #pragma message "Name and version: " QU_NAME "-" QU_STRINGIFY(QU_VERSION)
 
 #define GEGL_OP_POINT_FILTER
-#define GEGL_OP_NAME QU_PASTE(quantize_op_alpha_, QU_VERSION)
+#define GEGL_OP_NAME quantize_op_alpha
 #define GEGL_OP_C_SOURCE entry.c
-
-#pragma message "Op name: " QU_STRINGIFY(GEGL_OP_NAME)
 
 #include "gegl-op.h"
 #include "quakepal.h"
@@ -207,18 +223,21 @@ static gboolean process(
 static void prepare(GeglOperation *op) {
     GeglProperties *props = GEGL_PROPERTIES(op);
     struct color_space_ctx *ctx = props->user_data;
-    ctx->weights.v[0] = props->weight_x;
-    ctx->weights.v[1] = props->weight_y;
-    ctx->weights.v[2] = props->weight_z;
 
     switch (props->color_space) {
         case COLOR_SPACE_LCH:
             ctx->palette = lch_palette;
             ctx->distance_sq = lch_distance_sq;
+            ctx->weights.v[0] = props->weight_lightness;
+            ctx->weights.v[1] = props->weight_chroma;
+            ctx->weights.v[2] = props->weight_hue;
             break;
         default:
             ctx->palette = rgb_palette;
             ctx->distance_sq = rgb_distance_sq;
+            ctx->weights.v[0] = props->weight_r;
+            ctx->weights.v[1] = props->weight_g;
+            ctx->weights.v[2] = props->weight_b;
     }
 
     ctx->palette_sz = QUAKE_COLOR_COUNT;
