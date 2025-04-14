@@ -5,6 +5,10 @@ on:
     branches: [ 'main' ]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      caller:
+        required: false
+        type: string
 
 jobs:
   windows-build:
@@ -47,7 +51,7 @@ jobs:
           retention-days: 1
 
   linux-build:
-    runs-on: ubuntu-latst
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
