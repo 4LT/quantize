@@ -10,31 +10,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    uses: ./.github/workflows/windows-build.yml
+  build:
+    uses: ./.github/workflows/build.yml
     with:
       caller: "release"
 
   release:
     runs-on: ubuntu-latest
-    needs: [ build-windows ]
+    needs: [ build ]
 
     steps:
-      - name: Download Windows Artifacts
+      - name: Download Windows Artifact
         uses: actions/download-artifact@v4
         with:
           name: quantize-win64-${{ github.sha }}
+
+      - name: Download Linux Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: quantize-linux-${{ github.sha }}
 
       - name: Re-Compress
         run: |
           zip quantize-${{
             github.event_name == 'push' && github.ref_name || 'DRY_RUN'
           }}-win-x86_64.zip quantize-alpha.dll
+          zip quantize-${{
+            github.event_name == 'push' && github.ref_name || 'DRY_RUN'
+          }}-linux-x86_64.zip quantize-alpha.so
 
       - name: Create Release
         if: github.event_name == 'push'
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "quantize-${{github.ref_name}}-win-x86_64.zip"
+          artifacts: "quantize-${{github.ref_name}}-*-x86_64.zip"
           body: "# Quantize Release ${{ github.ref_name }}"
 
