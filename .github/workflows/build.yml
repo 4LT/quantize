@@ -1,17 +1,18 @@
-name: Windows Build
+name: Build
 
 on: 
   pull_request:
     branches: [ 'main' ]
   workflow_dispatch:
   workflow_call:
+    inputs:
+      caller:
+        required: false
+        type: string
 
 jobs:
-  build:
+  windows-build:
     runs-on: windows-latest
-
-    strategy:
-      fail-fast: false
 
     defaults:
       run:
@@ -36,13 +37,12 @@ jobs:
             gegl:p
 
       - name: Build
-        run: |
-          make EXT=dll
+        run: make EXT=dll
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         if: >-
-          github.event_name == 'workflow_call' ||
+          inputs.caller == 'release' ||
           github.event_name == 'workflow_dispatch'
         with:
           name: quantize-win64-${{ github.sha }}
@@ -50,3 +50,26 @@ jobs:
           path: quantize-alpha.dll
           retention-days: 1
 
+  linux-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Dependencies
+        run: sudo apt-get install pkg-config libgegl-dev
+
+      - name: Build
+        run: make
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        if: >-
+          inputs.caller == 'release' ||
+          github.event_name == 'workflow_dispatch'
+        with:
+          name: quantize-linux-${{ github.sha }}
+          overwrite: true
+          path: quantize-alpha.so
+          retention-days: 1
