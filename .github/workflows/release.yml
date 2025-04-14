@@ -33,15 +33,17 @@ jobs:
         run: |
           zip quantize-${{
             github.event_name == 'push' && github.ref_name || 'DRY_RUN'
-          }}-win-x86_64.zip quantize-alpha.dll
+          }}-win-x86_64.zip quantize.dll
           zip quantize-${{
             github.event_name == 'push' && github.ref_name || 'DRY_RUN'
-          }}-linux-x86_64.zip quantize-alpha.so
+          }}-linux-x86_64.zip quantize.so
 
       - name: Create Release
         if: github.event_name == 'push'
         uses: ncipollo/release-action@v1
         with:
           artifacts: "quantize-${{github.ref_name}}-*-x86_64.zip"
-          body: "# Quantize Release ${{ github.ref_name }}"
+          body: |
+            # Quantize Release ${{ github.ref_name }}
+            Check the [changelog](changelog.md) for updates
 
