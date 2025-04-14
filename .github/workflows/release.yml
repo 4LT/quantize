@@ -43,5 +43,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           artifacts: "quantize-${{github.ref_name}}-*-x86_64.zip"
-          body: "# Quantize Release ${{ github.ref_name }}"
+          body: |
+            # Quantize Release ${{ github.ref_name }}
+            Check the [changelog](changelog.md) for updates
 
