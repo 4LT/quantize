@@ -12,6 +12,8 @@ on:
 jobs:
   build-windows:
     uses: ./.github/workflows/windows-build.yml
+    with:
+      caller: "release"
 
   release:
     runs-on: ubuntu-latest

@@ -10,9 +10,6 @@ jobs:
   build:
     runs-on: windows-latest
 
-    strategy:
-      fail-fast: false
-
     defaults:
       run:
         shell: msys2 {0}
@@ -42,7 +39,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         if: >-
-          github.event_name == 'workflow_call' ||
+          inputs.caller == 'release' ||
           github.event_name == 'workflow_dispatch'
         with:
           name: quantize-win64-${{ github.sha }}
