@@ -1,5 +1,9 @@
 # Changelog
 
+## beta 1
+
+* Windows release
+
 ## alpha 3
 
 * Sliders for RGB and LCH are isolated; RGB sliders are only visible in RGB
