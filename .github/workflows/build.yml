@@ -47,7 +47,7 @@ jobs:
         with:
           name: quantize-win64-${{ github.sha }}
           overwrite: true
-          path: quantize-alpha.dll
+          path: quantize.dll
           retention-days: 1
 
   linux-build:
@@ -71,5 +71,5 @@ jobs:
         with:
           name: quantize-linux-${{ github.sha }}
           overwrite: true
-          path: quantize-alpha.so
+          path: quantize.so
           retention-days: 1

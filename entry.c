@@ -26,7 +26,7 @@
     #error "No version number"
 #endif
 
-#define QU_NAME "4lt:quantize-alpha"
+#define QU_NAME "4lt:quantize"
 
 #ifdef GEGL_PROPERTIES
 
@@ -78,7 +78,7 @@ property_double(weight_lightness, "Lightness Weight", 1.0)
 #pragma message "Name and version: " QU_NAME "-" QU_STRINGIFY(QU_VERSION)
 
 #define GEGL_OP_POINT_FILTER
-#define GEGL_OP_NAME quantize_op_alpha
+#define GEGL_OP_NAME quantize_beta
 #define GEGL_OP_C_SOURCE entry.c
 
 #include "gegl-op.h"
@@ -269,7 +269,7 @@ static void gegl_op_class_init (GeglOpClass *cls) {
     gegl_operation_class_set_keys(
         operation_class,
         "title",
-            "Quantize (alpha version)",
+            "Quantize (beta version)",
         "name",
             QU_NAME "-" QU_STRINGIFY(QU_VERSION),
         "categories",
