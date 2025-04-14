@@ -1,13 +1,15 @@
 PLUGIN_NAME=quantize-alpha
 VERSION=3
 EXT=so
+EXTRA_LDFLAGS=
+EXTRA_CFLAGS=
 
 PKGCONFIG_PKGS=gegl-0.4
 PKGCONFIG_CFLAGS=pkg-config --cflags $(PKGCONFIG_PKGS)
 PKGCONFIG_LFLAGS=pkg-config --libs $(PKGCONFIG_PKGS)
 CFLAGS=`$(PKGCONFIG_CFLAGS)` -Wall -std=c99 -fpic -O2 -I. \
-	-DQU_VERSION=$(VERSION)
-LFLAGS=`$(PKGCONFIG_LFLAGS)` -shared
+	-DQU_VERSION=$(VERSION) $(EXTRA_CFLAGS)
+LDFLAGS=`$(PKGCONFIG_LFLAGS)` -shared $(EXTRA_LDFLAGS)
 BASE_DEPS=Makefile
 OBJS=entry.o quakepal.o color_space_ops.o
 INSTALL_PATH=$(HOME)/.local/share/gegl-0.4/plug-ins
@@ -28,7 +30,7 @@ install-flatpak: $(ARTIFACT)
 
 
 $(ARTIFACT): $(BASE_DEPS) $(OBJS)
-	$(CC) $(LFLAGS) $(OBJS) -o $(ARTIFACT)
+	$(CC) $(OBJS) $(LDFLAGS) -o $(ARTIFACT)
 
 entry.o: $(BASE_DEPS) entry.c quakepal.h color_space_ops.h
 	$(CC) $(CFLAGS) -c entry.c

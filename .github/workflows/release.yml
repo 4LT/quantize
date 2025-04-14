@@ -1,0 +1,38 @@
+name: Quantize Release
+
+on: 
+  push:
+    branches: [ "main" ]
+    tags:
+      - "alpha*"
+      - "beta*"
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    uses: ./.github/workflows/windows-build.yml
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [ build-windows ]
+
+    steps:
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: quantize-win64-${{ github.sha }}
+
+      - name: Re-Compress
+        run: |
+          zip quantize-${{
+            github.event_name == 'push' && github.ref_name || 'DRY_RUN'
+          }}-win-x86_64.zip quantize-alpha.dll
+
+      - name: Create Release
+        if: github.event_name == 'push'
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "quantize-${{github.ref_name}}-win-x86_64.zip"
+          body: "# Quantize Release ${{ github.ref_name }}"
+

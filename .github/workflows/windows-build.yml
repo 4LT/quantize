@@ -1,0 +1,52 @@
+name: Windows Build
+
+on: 
+  pull_request:
+    branches: [ 'main' ]
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      fail-fast: false
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Disable conversion to CRLF
+        shell: pwsh
+        run: git config --global core.autocrlf input
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          install: >-
+            base-devel
+          pacboy: >-
+            toolchain:p
+            gegl:p
+
+      - name: Build
+        run: |
+          make EXT=dll
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        if: >-
+          github.event_name == 'workflow_call' ||
+          github.event_name == 'workflow_dispatch'
+        with:
+          name: quantize-win64-${{ github.sha }}
+          overwrite: true
+          path: quantize-alpha.dll
+          retention-days: 1
+
