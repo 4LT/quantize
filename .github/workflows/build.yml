@@ -30,6 +30,8 @@ jobs:
         id: msys2
         uses: msys2/setup-msys2@v2
         with:
+          msystem: UCRT64
+          update: true
           install: >-
             base-devel
           pacboy: >-
