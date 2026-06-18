@@ -15,6 +15,7 @@
 
 #include "color_space_ops.h"
 #include <math.h>
+#include <float.h>
 
 float rgb_distance_sq(
     struct vec4 color1,
@@ -60,7 +61,9 @@ float lch_distance_sq(
     // for cases where perceptual difference is more similar to euclidean
     // distance
 
-    if (r_max != 0.f) {
+    if (r_max == 0.f) {
+        d_theta_weighted = 0.f;
+    } else {
         d_theta_weighted *= r_min / r_max;
     }
 
@@ -77,7 +80,7 @@ int nearest_color_index(
     struct vec4 in_color
 ) {
     int nearest_index = 0;
-    float nearest_distance_sq = 1.f/0.f;
+    float nearest_distance_sq = FLT_MAX;
     float distance_sq;
 
     for (int idx = 0; idx < ctx->palette_sz; idx++) {
