@@ -1,5 +1,10 @@
 # Changelog
 
+## beta 2
+
+* Resolve potential undefined behavior (shouldn't affect behavior of builds that
+are currently working)
+
 ## beta 1
 
 * Windows release
